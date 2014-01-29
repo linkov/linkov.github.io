@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>Example of using Python LLDB API</title>
+        <meta name="viewport" content="width=device-width">
+
+        <!-- syntax highlighting CSS -->
+        <link rel="stylesheet" href="/css/syntax.css">
+
+        <!-- Custom CSS -->
+        <link rel="stylesheet" href="/css/main.css">
+
+    </head>
+    <body>
+
+        <div class="site">
+          <div class="header">
+            <h1 class="title"><a href="/">My New Jekyll Site</a></h1>
+            <a class="extra" href="/">home</a>
+          </div>
+
+          <h2>Example of using Python LLDB API</h2>
+<p class="meta">29 Jan 2013</p>
+
+<div class="post">
+<p>There are not much information on LLDB API. Even the official website mentioned during one of the WWDC 2012 sessions,while definitely handy, doesn&#39;t provide a whole lot of information. Also, there are a couple of posts over at <a href="http://www.libertypages.com/clarktech/?p=4289">clarktech</a> on the topic. </p>
+
+<p>As I&#39;ve been interested in python lately I decided to try to come up with something useful for my iOS development workflow. One of my current iOS projects has view hierarchy where position of a view is very important. I needed to somehow visualize the hierarchy.</p>
+
+<h1>View Hierarchies</h1>
+
+<p>On iOS there are several ways to add a view to view hierarchy:</p>
+
+<div class="highlight"><pre><code class="objective-c"><span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">view</span> <span class="n">addSubview</span><span class="o">:</span><span class="n">newView</span><span class="p">];</span>
+<span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">view</span> <span class="n">insertSubview</span><span class="o">:</span><span class="n">newView</span> <span class="n">belowView</span><span class="o">:</span><span class="n">someView</span><span class="p">];</span>
+<span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">view</span> <span class="n">insertSubview</span><span class="o">:</span><span class="n">newView</span> <span class="n">aboveView</span><span class="o">:</span><span class="n">someView</span><span class="p">];</span>
+</code></pre></div>
+
+<p>After newView has been added using -addSubiew it is available in subviews array. It is the last object in this array and can be accessed using [parentView.subviews lastObject]. So  what If we have several views at each level of hierarchy and need to track which view is on top of which. We can send recursiveDesription message to view (lldb) po [self.view recursiveDescription] or write our own version of this function that limits the amount of info and makes it more sane.</p>
+
+<p>However, as you can see these approaches doesn&#39;t provide ivars names of views. So we have to infer what view we are looking at from other information like its type and size. This is not fun.</p>
+
+<h1>LLDB API</h1>
+
+<div class="highlight"><pre><code class="python"><span class="n">node</span> <span class="o">=</span> <span class="n">lldb</span><span class="o">.</span><span class="n">frame</span><span class="o">.</span><span class="n">GetValueForVariablePath</span><span class="p">(</span><span class="s">&quot;*self&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">GetChildAtIndex</span><span class="p">(</span><span class="n">newViewIndex</span><span class="p">)</span> 
+</code></pre></div>
+
+<p>will give us object in self at index newViewIndex and assign it to variable node. When we added a newView to self.view it retained newView along with its variable name. Using LLDB GetName() call we can get the name of the variable. So calling node.GetName() will return &quot;newView&quot;.</p>
+
+<p>Now GetChildAtIndex(i) returns an object stored in self at index i. It can be any object. What we need however is a subclass of UIView. Because LLDB can evaluate expressions we can iterate over self children sending the following expression</p>
+
+<div class="highlight"><pre><code class="bash"><span class="s1">&#39;(BOOL)[self-&gt;%s isKindOfClass:(id)[UIView class]]&#39;</span> % <span class="o">(</span>node.GetName<span class="o">())</span>
+</code></pre></div>
+
+<p>We can now write names of views and their memory addresses in a dictionary, get subviews recursively similar to methods described in the first section, match those subviews against the dictionary of names by memory address. All that&#39;s left is to output the result in a nice format.</p>
+
+<h1>Magic of Python</h1>
+
+<p>Because of dynamic typing and pretty much automatic memory management (by the way based on reference counting) writing a python script is a great way to put together a quick solution. I wanted to have expandable view hierarchy rendered as a web page. So I used python marker.py module to construct a webpage and insert the views and subviews as  ul li elements. I also used jQuery to quickly add folding / unfolding and CSS to make the list look nice.</p>
+
+<p>You can download the code from <a href="https://github.com/linkov/uiview-hierarchy-generator">GitHub</a></p>
+
+</div>
+
+
+          <div class="footer">
+            <div class="contact">
+              <p>
+                Your Name<br />
+                What You Are<br />
+                you@example.com
+              </p>
+            </div>
+            <div class="contact">
+              <p>
+                <a href="https://github.com/yourusername">github.com/linkov</a><br />
+                <a href="https://twitter.com/yourusername">twitter.com/linkov</a><br />
+              </p>
+            </div>
+          </div>
+        </div>
+
+    </body>
+</html>
